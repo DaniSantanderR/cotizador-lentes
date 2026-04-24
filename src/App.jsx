@@ -86,13 +86,12 @@ function getArKey(activo, color, otros, otrosVal) {
 }
 
 // Tier de material por fórmula
-// bajo: maxEsf < 2 Y maxCil < 2
-// medio: maxEsf 2-4 Y maxCil 0-2
-// alto: cualquiera > 4
+// bajo:  |esfera| <= 2.00 Y |cilindro| <= 2.00  → solo CR o 1.56
+// medio: alguno entre 2 y 4                     → CR a Poly
+// alto:  alguno > 4                              → Poly hacia más delgado
 function matTier(maxEsf, maxCil) {
-  const m = Math.max(maxEsf, maxCil);
-  if (m < 2)  return 'bajo';
-  if (m <= 4) return 'medio';
+  if (maxEsf <= 2 && maxCil <= 2) return 'bajo';
+  if (maxEsf <= 4 && maxCil <= 4) return 'medio';
   return 'alto';
 }
 
@@ -427,22 +426,26 @@ function buildOps(esProg, maxEsf, maxCil, transitions, blue, esExterior, esNino,
   }
 
   if (mt === 'medio') {
+    // Esfera 2-4 o cilindro 2-4: CR hacia Poly
     let eco;
     if (freeTermOk && tieneAR && arColor) {
       eco = { ...ecoTermConAR(arColor, 'claro'), tier: 'Económica', rec: false };
     } else if (freeTermOk) {
-      eco = { tier: 'Económica', rec: false, tallado: false, arIncluido: false, freelens: true, aliens: false, nombre: 'Poly Blanco terminado', desc: 'Lente claro Poly terminado. Fórmulas hasta ±4.', costoBase: 11000, pvBase: 66000, features: ['Material Poly', 'Esfera +/-4.00 sin cilindro'] };
+      // sin cilindro → terminado CR; con cilindro → 1.56 tallado Freelens
+      eco = maxCil === 0
+        ? { tier: 'Económica', rec: false, tallado: false, arIncluido: false, freelens: true, aliens: false, nombre: 'CR Blanco terminado', desc: 'Lente claro CR terminado. Para fórmulas esféricas sin cilindro.', costoBase: 6000, pvBase: 36000, features: ['Material CR', 'Esfera +/-4.00 sin cilindro'] }
+        : { tier: 'Económica', rec: false, tallado: true, arIncluido: false, freelens: true, aliens: false, nombre: '1.56 Digital Monofocal Single (Freelens)', desc: 'Lente 1.56 digital para fórmulas con cilindro.', costoBase: 59000, pvBase: pvA(59000), features: ['Material 1.56', 'Digital', 'Apto para cilindro'] };
     } else {
-      eco = { tier: 'Económica', rec: false, tallado: true, arIncluido: false, freelens: true, aliens: false, nombre: 'Poly Digital Monofocal Single', desc: 'Lente claro digital en Poly para fórmulas con cilindro.', costoBase: 89000, pvBase: 89000 * 4, features: ['Digital personalizado', 'Apto para astigmatismo'] };
+      eco = { tier: 'Económica', rec: false, tallado: true, arIncluido: false, freelens: true, aliens: false, nombre: '1.56 Digital Monofocal Single (Freelens)', desc: 'Lente 1.56 digital en Freelens para fórmulas con cilindro.', costoBase: 59000, pvBase: pvA(59000), features: ['Material 1.56', 'Digital', 'Apto para astigmatismo'] };
     }
     return [[
       eco,
-      { tier: 'Estándar', rec: true, tallado: true, arIncluido: false, aliens: true, freelens: false, nombre: 'Aliens — Poly (PerfectionHD)', desc: 'Lente claro Poly digital Aliens de gama media.', costoBase: 100000, pvBase: pvA(100000), features: ['Diseño digital Aliens', 'Material Poly'] },
-      { tier: 'Premium', rec: false, tallado: true, arIncluido: false, freelens: false, aliens: false, nombre: 'Essilor — Poly Esférico — Asférico Tallado', desc: 'Poly asférico. Mayor nitidez y menor grosor.', costoBase: 36400, pvBase: pvS(36400), features: ['Diseño asférico', 'Más delgado que esférico'] },
+      { tier: 'Estándar', rec: true, tallado: true, arIncluido: false, aliens: true, freelens: false, nombre: 'Aliens — CR-39 (PerfectionHD)', desc: 'Lente claro CR digital Aliens de gama media.', costoBase: 80000, pvBase: pvA(80000), features: ['Diseño digital Aliens', 'Material CR'] },
+      { tier: 'Premium', rec: false, tallado: true, arIncluido: false, freelens: false, aliens: false, nombre: 'Essilor — 1.56 *Blue Tallado', desc: '1.56 tallado con filtro de luz azul integrado.', costoBase: 51000, pvBase: pvS(51000), features: ['Índice 1.56', 'Filtro luz azul-violeta', 'UV 100%'] },
     ], [
-      { tier: 'Avanzada', rec: false, tallado: true, arIncluido: false, freelens: false, aliens: false, nombre: 'Essilor — 1.56 *Blue Tallado', desc: '1.56 con filtro azul integrado.', costoBase: 51000, pvBase: pvS(51000), features: ['Índice 1.56', 'Filtro luz azul-violeta', 'UV 100%'] },
-      { tier: 'Superior', rec: true, tallado: true, arIncluido: false, freelens: false, aliens: false, nombre: 'Essilor — 1.60 *Blue UV Tallado', desc: 'Alto índice 1.60 con filtro azul. Más delgado para fórmulas altas.', costoBase: 104500, pvBase: pvS(104500), features: ['Índice 1.60 ultrafino', 'Filtro luz azul-violeta', 'Ideal monturas delgadas'] },
-      { tier: 'Top', rec: false, tallado: true, arIncluido: false, freelens: false, aliens: false, nombre: 'Essilor — Trivex Esférico Tallado', desc: 'Material Trivex. Más liviano que Poly, garantía 1 año.', costoBase: 63500, pvBase: pvS(63500), features: ['Material Trivex premium', 'Más liviano que Poly', 'Garantía 1 año'] },
+      { tier: 'Avanzada', rec: false, tallado: true, arIncluido: false, freelens: false, aliens: false, nombre: 'Essilor — ***Airwear *Blue UV', desc: 'Material Airwear liviano con filtro azul.', costoBase: 71300, pvBase: pvS(71300), features: ['Material Airwear liviano', 'Filtro luz azul-violeta', 'Protección UV 100%'] },
+      { tier: 'Superior', rec: true, tallado: true, arIncluido: false, freelens: false, aliens: false, nombre: 'Essilor — Poly Esférico — Asférico Tallado', desc: 'Poly asférico. Mayor nitidez y menor grosor para fórmulas hasta ±4.', costoBase: 36400, pvBase: pvS(36400), features: ['Diseño asférico', 'Más delgado que esférico', 'Rango +13.00 a -16.00'] },
+      { tier: 'Top', rec: false, tallado: true, arIncluido: true, freelens: false, aliens: false, nombre: 'Essilor — ***Airwear *Crizal Sapphire HR UV', desc: 'Airwear con AR Crizal Sapphire HR. Máxima calidad óptica.', costoBase: 95300, pvBase: pvS(95300), features: ['Material Airwear', 'AR Crizal Sapphire HR incluido', 'Máxima calidad óptica'] },
     ]];
   }
 
@@ -589,7 +592,7 @@ export default function App() {
           {grupos[grupo].map((op, i) => <OptionCard key={i} op={op} arKey={arKey} />)}
         </div>
         {primerVez && <div style={{ marginTop: '12px', background: '#E6F1FB', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', color: '#0C447C' }}>Aviso: paciente sin experiencia previa. Explicar período de adaptación.</div>}
-        <div style={{ marginTop: '9px', fontSize: '10px', color: '#aaa' }}>Precios por par. No incluyen montaje ni IVA.</div>
+        <div style={{ marginTop: '10px', fontSize: '11px', color: '#aaa' }}>Precios por par. No incluyen montaje ni IVA.</div>
       </div>}
     </div>
   );
