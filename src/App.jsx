@@ -466,6 +466,101 @@ function optsServi(ctx) {
 }
 
 // ─── Build grupos por gama ────────────────────────────────────────────────────
+// ─── Recomendaciones clínicas puras (sin labs, sin precios) ──────────────────
+function buildRecomendaciones(ctx) {
+  const {esProg,matNivel,transitions,blue,esExterior,potMax} = ctx;
+
+  const matDesc = {
+    cr:   'CR-39 (índice 1.50) o 1.56',
+    m156: '1.56 (índice medio)',
+    m160: '1.60 (alto índice)',
+    m167: '1.67 o 1.74 (ultra alto índice)',
+  }[matNivel] || 'CR-39';
+
+  const arRec = potMax>4 ? 'Antirreflejo recomendado (esencial para índices altos)' : 'Antirreflejo recomendado para mayor comodidad visual';
+
+  if (esProg) {
+    const fotoStr = (transitions||esExterior) ? ' + Transitions Gen S' : '';
+    return [
+      {tier:'Básico', icon:'🔵',
+        titulo:'Progresivo de entrada',
+        desc:`Material ${matDesc}. Diseño de corredor estrecho. Período de adaptación mayor.`,
+        items:['Progresivo digital de entrada','Material: '+matDesc,'Corredor de visión angosto (~14-16mm)','Adaptación: 2-4 semanas'+(fotoStr?', fotosensible disponible':'')]},
+      {tier:'Estándar', icon:'🟡',
+        titulo:'Progresivo de gama media'+fotoStr,
+        desc:`Corredor de visión más amplio. Mejor adaptación y mayor nitidez en todas las distancias${fotoStr?' con Transitions Gen S':''}.`,
+        items:['Diseño digital progresivo medio','Corredor ~18mm','Adaptación más rápida',arRec+(fotoStr?', Transitions Gen S incluido':'')]},
+      {tier:'Premium', icon:'🟢',
+        titulo:'Progresivo premium'+fotoStr,
+        desc:'Diseño freeform personalizado. Máxima amplitud de visión y adaptación casi inmediata.',
+        items:['Diseño freeform personalizado','Corredor amplio >20mm','Adaptación inmediata','AR premium multicapa recomendado'+(fotoStr?', Transitions Gen S o Xtractive':'')]},
+    ];
+  }
+
+  const fotoStr = (transitions||esExterior) ? 'Fotosensible (Transitions, Acclimates o similar). ' : '';
+  const blueStr = blue ? 'Filtro de luz azul-violeta incluido. ' : '';
+  const tratStr = fotoStr+blueStr;
+
+  return [
+    {tier:'Básico', icon:'🔵',
+      titulo:'Lente monofocal de entrada',
+      desc:`Material ${matDesc}. ${tratStr}Lente terminado si la fórmula lo permite.`,
+      items:[
+        'Material: '+matDesc,
+        potMax<=2?'Lente terminado posible (esfera ≤±4, sin cilindro alto)':'Lente tallado recomendado',
+        transitions?'Tratamiento fotosensible básico':blue?'Filtro luz azul básico':'Sin tratamiento especial',
+        'AR básico recomendado',
+      ]},
+    {tier:'Estándar', icon:'🟡',
+      titulo:'Lente monofocal con tratamientos',
+      desc:`Material ${matDesc} en diseño digital. ${tratStr}Mayor precisión óptica y comodidad.`,
+      items:[
+        'Material: '+matDesc+' en diseño digital',
+        transitions?'Fotosensible Transitions Gen S':blue?'Filtro luz azul-violeta integrado':'Lente claro de buena calidad',
+        arRec,
+        potMax>4?'Diseño asférico recomendado para reducir grosor':'Diseño digital de precisión',
+      ]},
+    {tier:'Premium', icon:'🟢',
+      titulo:'Lente monofocal premium',
+      desc:`Material superior (Airwear, Trivex o índice más alto). ${tratStr}AR premium multicapa.`,
+      items:[
+        potMax<=4?'Material Airwear o Trivex (liviano y resistente)':'Índice '+(potMax<=7?'1.67':'1.74')+' para máxima delgadez',
+        transitions?'Fotosensible Transitions Xtractive o Gen S':blue?'Filtro luz azul integrado en material':'Lente claro en material premium',
+        'AR multicapa premium (Crizal o similar)',
+        'Diseño digital de alta precisión',
+      ]},
+  ];
+}
+
+function RecomCard({rec}) {
+  const tierPalRec = {
+    'Básico':   {bg:'#f0f0f0',txt:'#555',border:'#ddd'},
+    'Estándar': {bg:'#FFF8E1',txt:'#7B5200',border:'#FFD54F'},
+    'Premium':  {bg:'#E8F5E9',txt:'#1B5E20',border:'#66BB6A'},
+  };
+  const tc = tierPalRec[rec.tier]||tierPalRec['Básico'];
+  return (
+    <div style={{background:'#fff',border:`2px solid ${tc.border}`,borderRadius:'14px',padding:'16px',display:'flex',flexDirection:'column',gap:'10px'}}>
+      <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+        <span style={{fontSize:'20px'}}>{rec.icon}</span>
+        <span style={{fontSize:'11px',padding:'3px 10px',borderRadius:'20px',background:tc.bg,color:tc.txt,fontWeight:'700'}}>{rec.tier}</span>
+      </div>
+      <div style={{fontSize:'14px',fontWeight:'700',color:'#222'}}>{rec.titulo}</div>
+      <div style={{fontSize:'12px',color:'#666',lineHeight:'1.6'}}>{rec.desc}</div>
+      <div style={{borderTop:'1px solid #eee',paddingTop:'8px'}}>
+        {rec.items.map((item,i)=>(
+          <div key={i} style={{fontSize:'12px',color:'#444',padding:'3px 0',display:'flex',gap:'6px',alignItems:'flex-start'}}>
+            <span style={{color:'#185FA5',fontWeight:'700',flexShrink:0}}>✓</span>{item}
+          </div>
+        ))}
+      </div>
+      <div style={{marginTop:'4px',background:'#f8f9fa',borderRadius:'8px',padding:'10px',fontSize:'11px',color:'#888',textAlign:'center'}}>
+        Activa un laboratorio para ver precios y productos específicos
+      </div>
+    </div>
+  );
+}
+
 function buildOps(ctx, labs) {
   const f = labs.freelens ? optsFreelens(ctx) : null;
   const a = labs.aliens   ? optsAliens(ctx)   : null;
@@ -500,8 +595,10 @@ export default function App() {
   const [mostrar,setMostrar] = useState(false);
   const [grupo,setGrupo] = useState(0);
   const [showConfig,setShowConfig] = useState(false);
+  const [selectedOp, setSelectedOp] = useState(null);
   const [labs,setLabs] = useState({freelens:true,aliens:true,servi:true});
 
+  const [nombre, setNombre] = useState('');
   const tieneAdd = od.add>0||oi.add>0;
   const esProg = tieneAdd;
   const potMax = Math.max(Math.abs(od.esf),Math.abs(oi.esf),Math.abs(od.cil),Math.abs(oi.cil));
@@ -578,6 +675,10 @@ export default function App() {
 
       <div style={{marginBottom:'1.5rem'}}>
         <div style={{fontSize:'11px',fontWeight:'600',color:'#888',letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:'10px'}}>Datos del paciente</div>
+        <div style={{marginBottom:'10px'}}>
+          <div style={{fontSize:'11px',color:'#888',marginBottom:'4px'}}>Nombre del paciente</div>
+          <input type="text" placeholder="Nombre completo" value={nombre} onChange={e=>setNombre(e.target.value)} style={{width:'100%',boxSizing:'border-box',padding:'7px 10px',borderRadius:'8px',border:'1px solid #ccc',fontSize:'13px',outline:'none',color:'#000'}}/>
+        </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
           <div>
             <div style={{fontSize:'11px',color:'#888',marginBottom:'4px'}}>Edad</div>
@@ -648,6 +749,18 @@ export default function App() {
       </button>
 
       {mostrar&&<div style={{marginTop:'2rem'}}>
+
+        {/* Sin labs activos → recomendaciones clínicas puras */}
+        {!labs.freelens&&!labs.aliens&&!labs.servi ? (
+          <div>
+            <div style={{fontSize:'11px',fontWeight:'600',color:'#888',letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:'4px'}}>Recomendación clínica</div>
+            <div style={{fontSize:'12px',color:'#999',marginBottom:'14px'}}>Sin laboratorio seleccionado — guía técnica según la fórmula, sin precios ni marcas.</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:'12px'}}>
+              {buildRecomendaciones(ctx).map((rec,i)=><RecomCard key={i} rec={rec}/>)}
+            </div>
+          </div>
+        ) : (
+          <>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
           <div style={{fontSize:'11px',fontWeight:'600',color:'#888',letterSpacing:'0.06em',textTransform:'uppercase'}}>
             {grupoSafe===0?'Opciones principales':'Más opciones'}
@@ -657,14 +770,13 @@ export default function App() {
             {grupoSafe===0&&grupo2Tiene&&<button onClick={()=>setGrupo(1)} style={{fontSize:'12px',padding:'5px 12px',borderRadius:'8px',cursor:'pointer',background:'#185FA5',border:'none',color:'white',fontWeight:'600'}}>Ver más opciones</button>}
           </div>
         </div>
-        {grupoData.length===0
-          ?<div style={{background:'#FAEEDA',borderRadius:'10px',padding:'20px',textAlign:'center',fontSize:'13px',color:'#633806'}}>No hay opciones con los laboratorios activos. Activa al menos uno en ⚙ Laboratorios.</div>
-          :<div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(grupoData.length,3)},minmax(0,1fr))`,gap:'12px'}}>
-            {grupoData.map((op,i)=><OptionCard key={i} op={op} arKey={arKey}/>)}
-          </div>
-        }
+        <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(grupoData.length,3)},minmax(0,1fr))`,gap:'12px'}}>
+          {grupoData.map((op,i)=><OptionCard key={i} op={op} arKey={arKey}/>)}
+        </div>
+          </>
+        )}
         {primerVez&&<div style={{marginTop:'12px',background:'#E6F1FB',borderRadius:'8px',padding:'10px 14px',fontSize:'12px',color:'#0C447C'}}>Aviso: paciente sin experiencia previa. Explicar período de adaptación.</div>}
-        <div style={{marginTop:'10px',fontSize:'11px',color:'#aaa'}}>Precios por par. No incluyen montaje ni IVA.</div>
+        {(labs.freelens||labs.aliens||labs.servi)&&<div style={{marginTop:'10px',fontSize:'11px',color:'#aaa'}}>Precios por par. No incluyen montaje ni IVA.</div>}
       </div>}
     </div>
   );
