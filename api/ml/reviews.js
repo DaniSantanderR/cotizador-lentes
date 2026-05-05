@@ -139,6 +139,7 @@ export default async function handler(req, res) {
       content: r.content || r.comment,
       date: r.date_created || r.created_date,
       reviewer: r.reviewer_data?.full_name || r.reviewer?.nickname || 'Anónimo',
+      photos: (r.pictures ?? []).map(p => p.url || p.secure_url || p).filter(Boolean),
     })),
     csv_url: `/api/ml/reviews?item_id=${item_id}&format=csv`,
   });
