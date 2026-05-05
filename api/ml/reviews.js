@@ -1,13 +1,11 @@
-// Descarga reseñas de un producto de Mercado Libre y las exporta
-// en formato CSV compatible con Judge.me
+// Descarga reseñas de ML y las exporta en formato CSV compatible con Judge.me
 //
 // Uso:
 //   GET /api/ml/reviews?item_id=MCO1234567890            → JSON
 //   GET /api/ml/reviews?item_id=MCO1234567890&format=csv → CSV para Judge.me
-//
-// El item_id se obtiene desde /api/ml/items
+//   GET /api/ml/reviews?item_id=MCOU2428153953           → catálogo (prueba múltiples endpoints)
 
-const PRODUCT_HANDLE = 'gafas-cuadradas'; // handle Shopify por defecto
+const PRODUCT_HANDLE = 'gafas-cuadradas';
 
 export default async function handler(req, res) {
   const accessToken = process.env.ML_ACCESS_TOKEN;
@@ -21,31 +19,79 @@ export default async function handler(req, res) {
   const { item_id, format, handle } = req.query;
 
   if (!item_id) {
-    return res.status(400).json({ error: 'Parámetro item_id requerido (ej: MCO1234567890)' });
+    return res.status(400).json({ error: 'Parámetro item_id requerido' });
   }
 
-  // Fetch all review pages
-  const allReviews = [];
-  let offset = 0;
-  const limit = 50;
+  const authHeaders = { Authorization: `Bearer ${accessToken}` };
+  const isCatalog = item_id.startsWith('MCOU');
 
-  while (true) {
-    const url = `https://api.mercadolibre.com/reviews/item/${item_id}?offset=${offset}&limit=${limit}`;
-    const reviewRes = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+  let allReviews = [];
+  let source = '';
 
-    const data = await reviewRes.json();
+  if (isCatalog) {
+    // Try catalog-specific endpoints for MCOU IDs
+    const catalogEndpoints = [
+      `https://api.mercadolibre.com/catalog/items/${item_id}/reviews`,
+      `https://api.mercadolibre.com/reviews/item/${item_id}`,
+    ];
 
-    if (data.error) {
-      return res.status(reviewRes.status).json({ error: data.error, message: data.message });
+    for (const url of catalogEndpoints) {
+      const r = await fetch(url, { headers: authHeaders });
+      const data = await r.json();
+
+      if (!data.error) {
+        const reviews = data.data ?? data.reviews ?? data.results ?? [];
+        if (reviews.length > 0) {
+          allReviews = reviews;
+          source = url;
+          break;
+        }
+      }
     }
 
-    const page = data.data ?? [];
-    allReviews.push(...page);
+    // Also try fetching via the seller's items that belong to this catalog
+    if (allReviews.length === 0) {
+      const userId = process.env.ML_USER_ID;
+      if (userId) {
+        const searchRes = await fetch(
+          `https://api.mercadolibre.com/users/${userId}/items/search?catalog_product_id=${item_id}&limit=10`,
+          { headers: authHeaders }
+        );
+        const searchData = await searchRes.json();
+        const linkedIds = searchData.results ?? [];
 
-    if (page.length < limit) break;
-    offset += limit;
+        for (const linkedId of linkedIds.slice(0, 5)) {
+          const reviewRes = await fetch(
+            `https://api.mercadolibre.com/reviews/item/${linkedId}?limit=50`,
+            { headers: authHeaders }
+          );
+          const reviewData = await reviewRes.json();
+          const reviews = reviewData.data ?? [];
+          allReviews.push(...reviews);
+        }
+        if (allReviews.length > 0) source = `linked items of ${item_id}`;
+      }
+    }
+  } else {
+    // Regular MCO item — paginate through all reviews
+    let offset = 0;
+    const limit = 50;
+
+    while (true) {
+      const url = `https://api.mercadolibre.com/reviews/item/${item_id}?offset=${offset}&limit=${limit}`;
+      const reviewRes = await fetch(url, { headers: authHeaders });
+      const data = await reviewRes.json();
+
+      if (data.error) {
+        return res.status(reviewRes.status).json({ error: data.error, message: data.message });
+      }
+
+      const page = data.data ?? [];
+      allReviews.push(...page);
+      if (page.length < limit) break;
+      offset += limit;
+    }
+    source = `/reviews/item/${item_id}`;
   }
 
   if (format === 'csv') {
@@ -55,9 +101,10 @@ export default async function handler(req, res) {
     ];
 
     for (const r of allReviews) {
-      const name = r.reviewer_data?.full_name || 'Cliente';
-      const email = r.reviewer_data?.id
-        ? `ml_${r.reviewer_data.id}@noreply.com`
+      const name = r.reviewer_data?.full_name || r.reviewer?.nickname || 'Cliente';
+      const reviewerId = r.reviewer_data?.id || r.reviewer?.id;
+      const email = reviewerId
+        ? `ml_${reviewerId}@noreply.com`
         : 'noreply@evoluxoptica.com';
 
       rows.push([
@@ -65,22 +112,22 @@ export default async function handler(req, res) {
         'published',
         r.rating ?? 5,
         csvField(r.title || ''),
-        csvField(r.content || ''),
+        csvField(r.content || r.comment || ''),
         csvField(name),
         csvField(email),
-        new Date(r.date_created).toISOString(),
+        new Date(r.date_created || r.created_date || Date.now()).toISOString(),
       ].join(','));
     }
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="reviews-${item_id}.csv"`);
-    return res.send('﻿' + rows.join('\r\n')); // BOM for Excel compatibility
+    return res.send('﻿' + rows.join('\r\n'));
   }
 
-  // JSON response with summary
   res.setHeader('Cache-Control', 'no-store');
   res.json({
     item_id,
+    source,
     total: allReviews.length,
     rating_avg: allReviews.length
       ? (allReviews.reduce((s, r) => s + (r.rating ?? 0), 0) / allReviews.length).toFixed(2)
@@ -89,9 +136,9 @@ export default async function handler(req, res) {
       id: r.id,
       rating: r.rating,
       title: r.title,
-      content: r.content,
-      date: r.date_created,
-      reviewer: r.reviewer_data?.full_name || 'Anónimo',
+      content: r.content || r.comment,
+      date: r.date_created || r.created_date,
+      reviewer: r.reviewer_data?.full_name || r.reviewer?.nickname || 'Anónimo',
     })),
     csv_url: `/api/ml/reviews?item_id=${item_id}&format=csv`,
   });
