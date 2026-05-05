@@ -7,7 +7,7 @@
 // Mapa: fragmento del body → fecha original de ML
 const DATE_MAP = [
   { match: 'Son perfectas aunque no son recetadas',                  date: '2026-02-25' },
-  { match: 'Muy buena calidad y material',                           date: '2025-10-18' },
+  { match: 'al primer uso si se sienten duros en la cabeza',         date: '2025-10-18' },
   { match: 'Mejor de lo esperado 100% recomendadas',                 date: '2024-02-02' },
   { match: 'Me gustaron mucho su material es de buena calidad',      date: '2023-10-31' },
   { match: 'Cumplió mis expectativas',                               date: '2025-06-16' },
