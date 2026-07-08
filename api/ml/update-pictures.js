@@ -23,6 +23,11 @@ export default async function handler(req, res) {
     }
 
     res.setHeader('Cache-Control', 'no-store');
+
+    if (req.query.raw) {
+      return res.json(data);
+    }
+
     return res.json({
       id: data.id,
       title: data.title,
@@ -33,6 +38,8 @@ export default async function handler(req, res) {
       catalog_product_id: data.catalog_product_id,
       permalink: data.permalink,
       pictures: data.pictures,
+      variations: (data.variations ?? []).map((v) => ({ id: v.id, picture_ids: v.picture_ids })),
+      tags: data.tags,
     });
   }
 
