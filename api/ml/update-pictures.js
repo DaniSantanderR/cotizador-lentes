@@ -40,10 +40,25 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Usa GET ?item_id=... para consultar, o POST con { item_id, picture_urls: [...] } para actualizar' });
   }
 
-  const { item_id, picture_urls } = req.body ?? {};
+  const { item_id, picture_urls, available_quantity, status } = req.body ?? {};
 
-  if (!item_id || !Array.isArray(picture_urls) || picture_urls.length === 0) {
-    return res.status(400).json({ error: 'item_id y picture_urls (array de URLs, no vacío) son requeridos' });
+  if (!item_id) {
+    return res.status(400).json({ error: 'item_id es requerido' });
+  }
+
+  const body = {};
+  if (Array.isArray(picture_urls) && picture_urls.length > 0) {
+    body.pictures = picture_urls.map((source) => ({ source }));
+  }
+  if (available_quantity !== undefined) {
+    body.available_quantity = available_quantity;
+  }
+  if (status !== undefined) {
+    body.status = status;
+  }
+
+  if (Object.keys(body).length === 0) {
+    return res.status(400).json({ error: 'Provee al menos uno: picture_urls, available_quantity o status' });
   }
 
   const putRes = await fetch(`https://api.mercadolibre.com/items/${item_id}`, {
@@ -52,9 +67,7 @@ export default async function handler(req, res) {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      pictures: picture_urls.map((source) => ({ source })),
-    }),
+    body: JSON.stringify(body),
   });
 
   const data = await putRes.json();
@@ -63,5 +76,5 @@ export default async function handler(req, res) {
     return res.status(putRes.status).json({ error: data.error, message: data.message, cause: data.cause });
   }
 
-  res.json({ ok: true, id: data.id, pictures: data.pictures });
+  res.json({ ok: true, id: data.id, status: data.status, sub_status: data.sub_status, available_quantity: data.available_quantity, pictures: data.pictures });
 }
